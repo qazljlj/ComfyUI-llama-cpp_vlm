@@ -292,7 +292,7 @@ class LLAMA_CPP_STORAGE:
             print(f"[llama-cpp_vlm] Loading clip: {mmproj}")
             
             think_mode = "Thinking" in chat_handler
-            kwargs = {"clip_model_path": mmproj_path, "verbose": False}
+            kwargs = {"mmproj_path": mmproj_path, "verbose": False}
             if chat_handler in ["Qwen3-VL", "Qwen3-VL-Thinking"]:
                 kwargs["force_reasoning"] = think_mode
                 kwargs["image_max_tokens"] = image_max_tokens
