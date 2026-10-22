@@ -538,6 +538,12 @@ class llama_cpp_instruct_adv:
                 "parameters": ("LLAMACPPARAMS",),
                 "images": ("IMAGE",),
                 "queue_handler": (any_type, {"tooltip": "Used to control the execution order of instruct nodes."}),
+                "format_prompt": ("STRING", {
+                    "forceInput": True,
+                    "tooltip": "Optional text appended to system_prompt. "
+                               "When connected, custom_prompt is sent as the "
+                               "user message and the preset is not applied.",
+                }),
             },
         }
     
@@ -558,7 +564,7 @@ class llama_cpp_instruct_adv:
                         item["image_url"]["url"] = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAACXBIWXMAAAsTAAALEwEAmpwYAAAADElEQVQImWP4//8/AAX+Av5Y8msOAAAAAElFTkSuQmCC"
         return clean_messages
     
-    def process(self, llama_model, preset_prompt, custom_prompt, system_prompt, inference_mode, max_frames, max_size, seed, force_offload, save_states, unique_id, parameters=None, images=None, queue_handler=None):
+    def process(self, llama_model, preset_prompt, custom_prompt, system_prompt, inference_mode, max_frames, max_size, seed, force_offload, save_states, unique_id, parameters=None, images=None, queue_handler=None, format_prompt=None):
         # 解包 INPUT_IS_LIST 参数
         llama_model = llama_model[0] if isinstance(llama_model, list) else llama_model
         preset_prompt = preset_prompt[0] if isinstance(preset_prompt, list) else preset_prompt
@@ -572,6 +578,8 @@ class llama_cpp_instruct_adv:
         save_states = save_states[0] if isinstance(save_states, list) else save_states
         unique_id = unique_id[0] if isinstance(unique_id, list) else unique_id
         parameters = parameters[0] if isinstance(parameters, list) and parameters else parameters
+        if isinstance(format_prompt, list):
+            format_prompt = format_prompt[0] if format_prompt else ""
 
         if not LLAMA_CPP_STORAGE.llm:
             LLAMA_CPP_STORAGE.load_model(llama_model)
@@ -591,7 +599,12 @@ class llama_cpp_instruct_adv:
         
         last_sys_prompt = LLAMA_CPP_STORAGE.sys_prompts.get(f"{uid}", None)
         video_input = inference_mode == "video"
+        format_text = str(format_prompt or "").strip()
         system_prompts = "请将输入的图片序列当做视频而不是静态帧序列, " + system_prompt if video_input else system_prompt
+        if format_text:
+            system_prompts = (system_prompts.rstrip() + "\n\n" + format_text) if str(system_prompts).strip() else format_text
+            if not str(custom_prompt).strip():
+                raise ValueError("format_prompt is connected but custom_prompt is empty.")
         
         if last_sys_prompt != system_prompts:
             messages = []
@@ -612,7 +625,7 @@ class llama_cpp_instruct_adv:
         out1 = ""
         out2 = []
         user_content = []
-        if custom_prompt.strip() and "*" not in preset_prompt:
+        if format_text or (custom_prompt.strip() and "*" not in preset_prompt):
             user_content.append({"type": "text", "text": custom_prompt})
         else:
             p = preset_prompts[preset_prompt].replace("#", custom_prompt.strip()).replace("@", "video" if video_input else "image")
@@ -764,7 +777,7 @@ class llama_cpp_parameters:
     def INPUT_TYPES(s):
         return {
             "required": {
-                "max_tokens": ("INT", {"default": 1024, "min": 0, "max": 4096, "step": 1}),
+                "max_tokens": ("INT", {"default": 1024, "min": 0, "max": 65536, "step": 1}),
                 "top_k": ("INT", {"default": 30, "min": 0, "max": 1000, "step": 1}),
                 "top_p": ("FLOAT", {"default": 0.9, "min": 0.0, "max": 1.0, "step": 0.01}),
                 "min_p": ("FLOAT", {"default": 0.05, "min": 0.0, "max": 1.0, "step": 0.01}),
